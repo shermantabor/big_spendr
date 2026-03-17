@@ -1,27 +1,18 @@
 const express = require('express')
 const dotenv = require('dotenv')
-const prisma = require('./db')
 
 dotenv.config()
 
 const app = express()
 app.use(express.json())
 
+app.use('/users', require('./routes/users'))
+app.use('/households', require('./routes/households'))
+app.use('/accounts', require('./routes/accounts'))
+app.use('/transactions', require('./routes/transactions'))
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' })
-})
-
-app.post('/households', async (req, res) => {
-    const { name } = req.body
-    const household = await prisma.household.create({
-        data: { name }
-    })
-    res.json(household)
-})
-
-app.get('/households', async (req, res) => {
-    const households = await prisma.household.findMany()
-    res.json(households)
 })
 
 const PORT = process.env.PORT || 3000
