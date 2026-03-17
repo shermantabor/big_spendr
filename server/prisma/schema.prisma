@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Household {
+  id         Int      @id @default(autoincrement())
+  name       String
+  createdAt  DateTime @default(now())
+
+  members      HouseholdMember[]
+  accounts     Account[]
+  categories   Category[]
+  categoryRules CategoryRule[]
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  households    HouseholdMember[]
+  accounts      Account[]
+  categoryRules CategoryRule[]
+}
+
+model HouseholdMember {
+  id          Int    @id @default(autoincrement())
+  role        String @default("member")
+
+  household   Household @relation(fields: [householdId], references: [id])
+  householdId Int
+  user        User      @relation(fields: [userId], references: [id])
+  userId      Int
+}
+
+model Account {
+  id          Int    @id @default(autoincrement())
+  name        String
+  type        String
+  institution String
+  lastFour    String?
+  createdAt   DateTime @default(now())
+
+  household   Household @relation(fields: [householdId], references: [id])
+  householdId Int
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdById Int
+
+  transactions Transaction[]
+}
+
+model Category {
+  id        Int     @id @default(autoincrement())
+  name      String
+  color     String?
+  icon      String?
+  isDefault Boolean @default(false)
+
+  household   Household @relation(fields: [householdId], references: [id])
+  householdId Int
+
+  transactions  Transaction[]
+  categoryRules CategoryRule[]
+}
+
+model CategoryRule {
+  id              Int    @id @default(autoincrement())
+  merchantPattern String
+  priority        Int    @default(0)
+
+  household   Household @relation(fields: [householdId], references: [id])
+  householdId Int
+  category    Category  @relation(fields: [categoryId], references: [id])
+  categoryId  Int
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdById Int
+}
+
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  amount      Float
+  date        DateTime
+  merchant    String
+  rawMerchant String?
+  notes       String?
+  source      String   @default("csv_import")
+  createdAt   DateTime @default(now())
+
+  account    Account   @relation(fields: [accountId], references: [id])
+  accountId  Int
+  category   Category? @relation(fields: [categoryId], references: [id])
+  categoryId Int?
+}
