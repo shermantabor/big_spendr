@@ -1,15 +1,17 @@
 const express = require('express')
 const dotenv = require('dotenv')
+const authenticate = require('./middleware/auth')
 
 dotenv.config()
 
 const app = express()
 app.use(express.json())
 
-app.use('/users', require('./routes/users'))
-app.use('/households', require('./routes/households'))
-app.use('/accounts', require('./routes/accounts'))
-app.use('/transactions', require('./routes/transactions'))
+app.use('/users', authenticate, require('./routes/users'))
+app.use('/households', authenticate, require('./routes/households'))
+app.use('/accounts', authenticate, require('./routes/accounts'))
+app.use('/transactions', authenticate, require('./routes/transactions'))
+app.use('/auth', require('./routes/auth'))
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' })
