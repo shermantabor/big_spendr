@@ -10,6 +10,7 @@ datasource db {
 model Household {
   id         Int      @id @default(autoincrement())
   name       String
+  inviteCode String @unique @default(cuid())
   createdAt  DateTime @default(now())
 
   members      HouseholdMember[]
