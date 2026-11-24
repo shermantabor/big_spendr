@@ -62,7 +62,7 @@ export default async function AccountsPage() {
 
       {env === "production" && !webhookUrl() && (
         <div className="card border-amber-300 text-sm">
-          <strong>Automatic updates are off.</strong> Set <code>APP_URL</code> to your https address in Vercel so Plaid
+          <strong>Automatic updates are off.</strong> Set <code>APP_URL</code> to your https address in Render so Plaid
           can notify the app about new transactions, then reconnect or wait for the daily sync.
         </div>
       )}
