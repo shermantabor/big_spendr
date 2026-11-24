@@ -1,0 +1,59 @@
+# Render Blueprint: in the Render dashboard choose New → Blueprint and pick
+# this repository. Render creates the web app and the daily sync job, generates
+# the random secrets, and asks you for the values marked sync: false.
+
+envVarGroups:
+  - name: big-spendr-shared
+    envVars:
+      # Shared by the web app and the cron job so the cron can call the app.
+      - key: CRON_SECRET
+        generateValue: true
+
+services:
+  - type: web
+    name: big-spendr
+    runtime: node
+    # free: spins down after 15 idle minutes and takes ~1 minute to wake
+    # (Plaid retries webhooks, so nothing is lost). starter: always on.
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /login
+    envVars:
+      - fromGroup: big-spendr-shared
+      # Generated once by Render. Don't change ENCRYPTION_KEY later: it
+      # encrypts stored bank tokens, and a new key means re-linking every bank.
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: PLAID_CLIENT_ID
+        sync: false
+      - key: PLAID_SECRET
+        sync: false
+      - key: PLAID_ENV
+        sync: false
+      - key: ALLOWED_EMAILS
+        sync: false
+      - key: APP_TIMEZONE
+        value: America/New_York
+      # APP_URL is optional here: the app falls back to Render's
+      # RENDER_EXTERNAL_URL. Set it if you add a custom domain.
+      # PLAID_REDIRECT_URI is optional (only for linking banks from a phone).
+
+  - type: cron
+    name: big-spendr-daily-sync
+    runtime: node
+    # Cron jobs can't use the free plan; Render bills by the second with a
+    # $1/month minimum.
+    plan: starter
+    schedule: "0 11 * * *" # every day at 11:00 UTC (6 AM Eastern)
+    buildCommand: "true"
+    startCommand: node scripts/trigger-sync.mjs
+    envVars:
+      - fromGroup: big-spendr-shared
+      # The web app's address, e.g. https://big-spendr.onrender.com
+      - key: APP_URL
+        sync: false

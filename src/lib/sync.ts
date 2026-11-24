@@ -3,7 +3,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import type { Plaid } from "plaid";
 import { db, s } from "@/db";
 import { decrypt } from "@/lib/crypto";
-import { plaid, plaidErrorCode, plaidErrorMessage } from "@/lib/plaid";
+import { plaid, plaidEnv, plaidErrorCode, plaidErrorMessage } from "@/lib/plaid";
 import { createCategoryResolver } from "@/lib/categories";
 
 export type SyncResult = {
@@ -97,6 +97,13 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
   const [item] = await db.select().from(s.plaidItems).where(eq(s.plaidItems.id, itemId));
   if (!item) throw new Error(`No Plaid item ${itemId}`);
   const base = { itemId, institution: item.institutionName };
+  if (item.plaidEnv !== plaidEnv()) {
+    // A sandbox token can't be used against production (or vice versa).
+    return {
+      ...base, added: 0, modified: 0, removed: 0, status: "error",
+      error: `This connection was made in Plaid ${item.plaidEnv} and can't sync while the app uses ${plaidEnv()}.`,
+    };
+  }
 
   let updates: Awaited<ReturnType<typeof fetchAllUpdates>>;
   try {
@@ -213,7 +220,11 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
 }
 
 export async function syncAllItems(): Promise<SyncResult[]> {
-  const items = await db.select({ id: s.plaidItems.id }).from(s.plaidItems);
+  // Only connections from the Plaid environment the app is running in.
+  const items = await db
+    .select({ id: s.plaidItems.id })
+    .from(s.plaidItems)
+    .where(eq(s.plaidItems.plaidEnv, plaidEnv()));
   const results: SyncResult[] = [];
   for (const item of items) {
     try {

@@ -29,6 +29,11 @@ export const plaidItems = pgTable("plaid_items", {
   institutionName: text("institution_name"),
   // Cursor for /transactions/sync. Null means "start from the beginning".
   cursor: text("cursor"),
+  // Which Plaid environment created this connection: sandbox or production.
+  // Tokens only work in the environment that issued them, so connections from
+  // the other environment are skipped by sync and can be cleaned up.
+  // Existing rows predate production, so they default to sandbox.
+  plaidEnv: text("plaid_env").notNull().default("sandbox"),
   // good | login_required | error
   status: text("status").notNull().default("good"),
   errorCode: text("error_code"),

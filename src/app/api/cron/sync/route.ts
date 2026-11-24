@@ -4,9 +4,10 @@ import { syncAllItems } from "@/lib/sync";
 export const maxDuration = 300;
 
 /**
- * Daily backup sync, run by Vercel Cron (see vercel.json). Webhooks normally
- * keep things current; this catches anything a webhook missed.
- * Vercel sends "Authorization: Bearer $CRON_SECRET" automatically.
+ * Daily backup sync. Render's cron job (see render.yaml and
+ * scripts/trigger-sync.mjs) calls this once a day. Webhooks normally keep
+ * things current; this catches anything a webhook missed.
+ * Requires "Authorization: Bearer $CRON_SECRET".
  */
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;

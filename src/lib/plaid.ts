@@ -26,7 +26,8 @@ export function plaid(): PlaidClient {
 export function appUrl(): string {
   const explicit = process.env.APP_URL;
   if (explicit) return explicit.replace(/\/$/, "");
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  // Render sets this on web services, e.g. https://big-spendr.onrender.com
+  if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, "");
   return "http://localhost:3000";
 }
 
