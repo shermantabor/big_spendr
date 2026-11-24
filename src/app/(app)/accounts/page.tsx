@@ -1,8 +1,8 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { db, s } from "@/db";
 import { money } from "@/lib/format";
-import { plaidEnv } from "@/lib/plaid";
-import { syncNow, removeItem, setAccountHidden } from "@/app/actions/budget";
+import { plaidEnv, webhookUrl } from "@/lib/plaid";
+import { syncNow, removeItem, setAccountHidden, clearOtherEnvironment } from "@/app/actions/budget";
 import { PlaidLinkButton } from "@/components/plaid-link-button";
 import { SubmitButton } from "@/components/submit-button";
 
@@ -17,12 +17,14 @@ function ago(d: Date | null) {
 }
 
 export default async function AccountsPage() {
+  const env = plaidEnv();
   const [items, accts] = await Promise.all([
     db
       .select({
         id: s.plaidItems.id,
         institutionName: s.plaidItems.institutionName,
         status: s.plaidItems.status,
+        plaidEnv: s.plaidItems.plaidEnv,
         errorCode: s.plaidItems.errorCode,
         lastSyncedAt: s.plaidItems.lastSyncedAt,
         linkedBy: s.users.name,
@@ -32,6 +34,8 @@ export default async function AccountsPage() {
       .orderBy(desc(s.plaidItems.createdAt)),
     db.select().from(s.accounts).orderBy(asc(s.accounts.name)),
   ]);
+  const otherEnv = env === "production" ? "sandbox" : "production";
+  const otherEnvCount = items.filter((i) => i.plaidEnv !== env).length;
 
   return (
     <div className="space-y-6">
@@ -41,7 +45,7 @@ export default async function AccountsPage() {
           <p className="mt-1 max-w-xl text-sm text-muted">
             New charges arrive automatically: Plaid tells the app when your bank posts something new, and a daily sync
             catches anything missed.
-            {plaidEnv() === "sandbox" && (
+            {env === "sandbox" && (
               <> In sandbox, pick any bank and sign in with <code>user_transactions_dynamic</code> / any password for realistic data, or <code>user_good</code> / <code>pass_good</code>.</>
             )}
           </p>
@@ -56,6 +60,42 @@ export default async function AccountsPage() {
         </div>
       </div>
 
+      {env === "production" && !webhookUrl() && (
+        <div className="card border-amber-300 text-sm">
+          <strong>Automatic updates are off.</strong> Set <code>APP_URL</code> to your https address in Vercel so Plaid
+          can notify the app about new transactions, then reconnect or wait for the daily sync.
+        </div>
+      )}
+
+      {otherEnvCount > 0 && (
+        <div className="card space-y-3 border-amber-300 text-sm">
+          <p>
+            <strong>
+              {otherEnvCount} test connection{otherEnvCount === 1 ? "" : "s"} from Plaid {otherEnv}.
+            </strong>{" "}
+            The app now uses Plaid {env}, so {otherEnvCount === 1 ? "it" : "they"} can&apos;t sync. Remove the test
+            data so fake transactions don&apos;t mix into your totals and budget suggestions.
+          </p>
+          <form action={clearOtherEnvironment} className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 text-muted">
+              <input type="checkbox" name="resetCategories" defaultChecked /> Also remove categories and budgets that
+              only had test transactions
+            </label>
+            <SubmitButton pendingText="Removing…" className="btn-ghost text-danger">
+              Remove {otherEnv} data
+            </SubmitButton>
+          </form>
+        </div>
+      )}
+
+      {env === "production" && (
+        <p className="text-xs text-muted">
+          On Plaid&apos;s free Trial plan you can connect up to 10 banks in total, and removing one doesn&apos;t give
+          the slot back. Connect each bank once; if one stops working, use &ldquo;Fix connection&rdquo; instead of
+          connecting it again.
+        </p>
+      )}
+
       {items.length === 0 && <div className="card text-sm text-muted">No accounts connected yet.</div>}
 
       {items.map((item) => (
@@ -69,18 +109,25 @@ export default async function AccountsPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {item.status !== "good" && (
+              {item.plaidEnv !== env && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+                  Test data ({item.plaidEnv})
+                </span>
+              )}
+              {item.plaidEnv === env && item.status !== "good" && (
                 <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800 dark:bg-red-900/40 dark:text-red-200">
                   {item.status === "login_required" ? "Needs you to sign in again" : `Sync error (${item.errorCode})`}
                 </span>
               )}
-              {item.status === "login_required" && (
+              {item.plaidEnv === env && item.status === "login_required" && (
                 <PlaidLinkButton itemId={item.id} label="Fix connection" className="btn-ghost" />
               )}
-              <form action={syncNow}>
-                <input type="hidden" name="itemId" value={item.id} />
-                <SubmitButton pendingText="Syncing…">Sync now</SubmitButton>
-              </form>
+              {item.plaidEnv === env && (
+                <form action={syncNow}>
+                  <input type="hidden" name="itemId" value={item.id} />
+                  <SubmitButton pendingText="Syncing…">Sync now</SubmitButton>
+                </form>
+              )}
               <form action={removeItem}>
                 <input type="hidden" name="itemId" value={item.id} />
                 <SubmitButton pendingText="Removing…" className="btn-ghost text-danger">Remove</SubmitButton>

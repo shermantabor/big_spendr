@@ -52,12 +52,16 @@ export function PlaidLinkButton({
       const res = await fetch("/api/plaid/exchange", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publicToken }),
+        body: JSON.stringify({
+          publicToken,
+          institutionId: metadata.institution?.institution_id ?? null,
+          accounts: metadata.accounts.map((a) => ({ name: a.name, mask: a.mask })),
+        }),
       });
       const data = await res.json();
       setBusy(false);
       if (!res.ok) {
-        setStatus(`Something went wrong: ${data.error}`);
+        setStatus(res.status === 409 ? data.error : `Something went wrong: ${data.error}`);
         return;
       }
       const added = data.result?.added ?? 0;

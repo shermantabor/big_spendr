@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { ne, sql } from "drizzle-orm";
+import { db, s } from "@/db";
 import { requireUser } from "@/lib/session";
 import { logout } from "@/app/actions/auth";
 import { Nav } from "@/components/nav";
@@ -5,9 +8,20 @@ import { plaidEnv } from "@/lib/plaid";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  const env = plaidEnv();
+  const [{ stale }] = await db
+    .select({ stale: sql<number>`count(*)::int` })
+    .from(s.plaidItems)
+    .where(ne(s.plaidItems.plaidEnv, env));
   return (
     <div className="min-h-screen">
-      {plaidEnv() === "sandbox" && (
+      {stale > 0 && (
+        <div className="bg-amber-100 px-4 py-1.5 text-center text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+          Test data from Plaid {env === "production" ? "sandbox" : "production"} is still mixed in.{" "}
+          <Link href="/accounts" className="underline">Remove it on the Accounts page</Link>.
+        </div>
+      )}
+      {env === "sandbox" && (
         <div className="bg-amber-100 px-4 py-1.5 text-center text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
           Plaid sandbox: these are test banks and fake transactions.
         </div>

@@ -101,18 +101,35 @@ new transactions.
 
 ### 4. Switch to your real accounts
 
-1. In the Plaid dashboard, request **Production** access. Plaid reviews the
-   request; personal-use apps are generally allowed, and Plaid bills per
-   connected account after any free allowance on your plan.
-2. For banks that use OAuth (Chase, Capital One, Wells Fargo and others), also
-   complete Plaid's OAuth registration in the dashboard, add
-   `https://<your-app>.vercel.app/oauth` under **Developers → API → Allowed
-   redirect URIs**, and set `PLAID_REDIRECT_URI` to the same URL.
-3. In Vercel, set `PLAID_ENV=production` and `PLAID_SECRET` to your
-   **Production** secret, then redeploy.
-4. Sandbox connections don't work in production. Remove them on the Accounts
-   page, and optionally start with a fresh database (a new Neon branch) so fake
-   transactions don't skew your budget suggestions.
+1. **Get production access.** In the Plaid dashboard, apply for the free
+   **Trial plan** (dashboard.plaid.com/trial-plan). It uses real bank data,
+   includes Transactions, and covers most big banks (Chase, Bank of America,
+   Wells Fargo, Capital One, Citi, Amex and more) with no extra OAuth
+   registration. Most applications are approved automatically; flagged ones
+   take 2–3 business days. The catch: **10 bank connections total, ever.**
+   Removing one doesn't free its slot, and connecting the same bank twice uses
+   two. (Teams created before April 15, 2026 can't use the Trial; they apply
+   for Pay-as-you-go Production instead, which bills each connection monthly.)
+2. **Copy the Production secret** from Developers → Keys. The `client_id` stays
+   the same; the secret is different from the sandbox one.
+3. **In Vercel → Settings → Environment Variables**, set `PLAID_ENV` to
+   `production` and replace `PLAID_SECRET` with the Production secret. Make sure
+   `APP_URL` is your `https://` address, or Plaid can't send webhooks. Then
+   **redeploy** (Deployments → ⋯ → Redeploy); env changes only apply to new
+   deployments.
+4. **Clean up test data.** Open Accounts. Your sandbox connections show as
+   "Test data" and stop syncing. Click **Remove sandbox data** so fake
+   transactions don't skew your totals and budget suggestions.
+5. **Connect your real banks**, once each. If a bank later needs you to sign in
+   again, use **Fix connection** rather than connecting it again.
+6. Optional, for connecting from a phone: add
+   `https://<your-app>.vercel.app/oauth` under Developers → API → Allowed
+   redirect URIs, and set `PLAID_REDIRECT_URI` to the same URL. On a computer,
+   bank sign-in pages open in a popup and don't need this.
+
+The app records which Plaid environment created each connection, so you can
+switch back to sandbox later for testing without breaking anything; it just
+skips connections from the other environment.
 
 ## Project layout
 

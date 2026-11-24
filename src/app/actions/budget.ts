@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db, s } from "@/db";
 import { requireUser } from "@/lib/session";
 import { merchantKey } from "@/lib/categories";
 import { syncAllItems, syncItem } from "@/lib/sync";
 import { decrypt } from "@/lib/crypto";
-import { plaid, plaidErrorMessage } from "@/lib/plaid";
+import { plaid, plaidEnv, plaidErrorMessage } from "@/lib/plaid";
 import { budgetSuggestions } from "@/lib/queries";
 
 function refresh() {
@@ -156,13 +156,39 @@ export async function removeItem(form: FormData) {
   const id = String(form.get("itemId"));
   const [item] = await db.select().from(s.plaidItems).where(eq(s.plaidItems.id, id));
   if (!item) return;
-  try {
-    await plaid().item.remove({ access_token: decrypt(item.accessTokenEnc) });
-  } catch (err) {
-    // Still remove it locally; log so it can be cleaned up in the Plaid dashboard.
-    console.error("[removeItem]", plaidErrorMessage(err));
+  // Tell Plaid first so it stops billing for the connection. A token from the
+  // other environment (e.g. sandbox, after switching to production) can't be
+  // used here, and sandbox connections cost nothing, so just delete those.
+  if (item.plaidEnv === plaidEnv()) {
+    try {
+      await plaid().item.remove({ access_token: decrypt(item.accessTokenEnc) });
+    } catch (err) {
+      // Still remove it locally; log so it can be cleaned up in the Plaid dashboard.
+      console.error("[removeItem]", plaidErrorMessage(err));
+    }
   }
   await db.delete(s.plaidItems).where(eq(s.plaidItems.id, id));
+  refresh();
+}
+
+/**
+ * After switching Plaid environments: deletes every connection from the other
+ * environment along with its accounts and transactions. With resetCategories,
+ * also deletes categories that no longer have any transactions (and their
+ * budgets), so fake sandbox spending doesn't shape your real categories and
+ * budget suggestions. Categories with real transactions are kept.
+ */
+export async function clearOtherEnvironment(form: FormData) {
+  await requireUser();
+  const resetCategories = form.get("resetCategories") === "on";
+  await db.transaction(async (tx) => {
+    await tx.delete(s.plaidItems).where(ne(s.plaidItems.plaidEnv, plaidEnv()));
+    if (resetCategories) {
+      await tx
+        .delete(s.categories)
+        .where(sql`not exists (select 1 from ${s.transactions} where ${s.transactions.categoryId} = ${s.categories.id})`);
+    }
+  });
   refresh();
 }
 
